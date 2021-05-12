@@ -5,3 +5,7 @@ Instructions:
 3. After claiming phase execute start command (needs team size parameter)
 4. User creates room
 5. Room ID is shared
+
+Setup Guide
+
+Access Token generieren via https://github.com/settings/tokens
