@@ -1,0 +1,7 @@
+### Team_Bot
+Instructions:
+1. Privately claim Account
+2. Bot returns claimed message in channel
+3. After claiming phase execute start command (needs team size parameter)
+4. User creates room
+5. Room ID is shared
