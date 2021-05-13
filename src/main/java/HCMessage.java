@@ -4,14 +4,21 @@ import net.dv8tion.jda.api.entities.TextChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
+import java.util.Set;
 
 public class HCMessage extends ListenerAdapter {
 
     private Properties properties;
     private Map<Integer, String> claimedAccounts = new HashMap<Integer, String>();
+    private List<int[]> teams = new ArrayList<int[]>();
+    private int playerFreePass = -1;
     private TextChannel GLOBAL_CHANNEL = null;
 
     public HCMessage(Properties properties) {
@@ -95,16 +102,53 @@ public class HCMessage extends ListenerAdapter {
                 //not a number
             }
         } else if(splitMessage.length == 1) {
-            createTeams(0);
+            createTeams(1);
         }
     }
 
+    //admin should consider teamSize such that
+    //(playerAcc.size() / teamSize) % 2 == 0
     protected void createTeams(int teamSize) {
-
+    	Set<Integer> playerAcc = claimedAccounts.keySet();
+    	Random rand = new Random();
+    	if (playerAcc.size() % teamSize == 1) { 
+    		int randomIndex = rand.nextInt(playerAcc.size());
+    		playerFreePass = getPlayerAcc(playerAcc, randomIndex);
+    		playerAcc.remove(playerFreePass);
+    	}  
+    	if ((playerAcc.size() / teamSize) % 2 != 0) {
+    		GLOBAL_CHANNEL.sendMessage("Please reconsider the Team Size!").queue();
+    		return;
+    	}
+    	int teamAmount = playerAcc.size() / teamSize;
+    	for (int i = 0; i < teamAmount; i++) {
+    		int[] playerTeam = new int[teamSize];
+    		for (int j = 0; j < teamSize; j++) {
+    			int teamMate = getPlayerAcc(playerAcc, rand.nextInt(playerAcc.size()));
+    			playerTeam[j] = teamMate;
+    			playerAcc.remove(teamMate);
+    		}
+    		teams.add(playerTeam);
+    	}
     }
+    
+    private int getPlayerAcc(Set<Integer> players, int index) {
+    	Iterator<Integer> itr = players.iterator();
+    	int idx = 0;
+    	while (itr.hasNext()) {
+    		int player = itr.next();
+    		if (idx == index) {
+    			return player;
+    		}
+    		idx++;
+    	}
+    	return -1;
+    }
+    
     protected void handleSetup(MessageReceivedEvent event) {
         GLOBAL_CHANNEL = event.getGuild().getTextChannelById(event.getChannel().getId());
         GLOBAL_CHANNEL.sendMessage("Setup complete. Using ``" + GLOBAL_CHANNEL.getName() + "`` for updates.").queue();
+        //Additional Setup Methods required
     }
 
     protected void handleClaim(MessageReceivedEvent event, MessageChannel channel, String user, String userName) {
