@@ -128,7 +128,10 @@ public class HCMessage extends ListenerAdapter {
             if (checkIfFree(possibleClaim)) {
                 if (checkIfUserDidntClaimed(user)) {
                     claimedAccounts.put(possibleClaim, user);
-                    channel.sendMessage("You successfully claimed ``YOINC_acc0" + possibleClaim + "``.\n" +
+                    channel.sendMessage("You successfully claimed ``YOINC_acc0" + possibleClaim + "``.\n\n" +
+                            "Please login into your Steam client using the following data:\n" +
+                            "Username: ``YOINC_acc0" + possibleClaim + "``\n" +
+                            "Password: ``" + properties.getProperty("password.yoinc_acc0" + possibleClaim) + "``\n\n" +
                             "Please follow the guide on the website to set up family sharing.").queue();
                     GLOBAL_CHANNEL.sendMessage("``YOINC_acc0" + possibleClaim + "`` claimed.").queue();
                     System.out.println("[CLAIM] - " + userName + " claimed YOINC_acc0" + possibleClaim);
