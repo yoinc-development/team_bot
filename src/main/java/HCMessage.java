@@ -29,7 +29,6 @@ public class HCMessage extends ListenerAdapter {
         }
         if (event.getMessage() != null) {
             if (event.isFromType(ChannelType.PRIVATE)) {
-
                     switch (handleMessage(event.getMessage().getContentDisplay(), isAdmin)) {
                         case 1:
                             if (GLOBAL_CHANNEL != null) {
@@ -50,6 +49,9 @@ public class HCMessage extends ListenerAdapter {
                     }
             } else {
                 switch (handleMessage(event.getMessage().getContentDisplay(), isAdmin)) {
+                    case 3:
+                        handleStart(event);
+                        break;
                     case 9:
                         handleSetup(event);
                         break;
@@ -67,6 +69,11 @@ public class HCMessage extends ListenerAdapter {
         if (message.toLowerCase().startsWith("/say")) {
             return 2;
         }
+        if(message.toLowerCase().startsWith("/start")) {
+            if(isAdmin) {
+                return 3;
+            }
+        }
         if (message.toLowerCase().startsWith("/setup")) {
             if (isAdmin) {
                 return 9;
@@ -77,6 +84,24 @@ public class HCMessage extends ListenerAdapter {
         return 0;
     }
 
+    protected void handleStart(MessageReceivedEvent event) {
+        String message = event.getMessage().getContentDisplay();
+        String[] splitMessage = message.split(" ");
+        if(splitMessage.length == 2) {
+            try {
+                int teamSize = Integer.parseInt(splitMessage[1]);
+                createTeams(teamSize);
+            } catch (NumberFormatException ex) {
+                //not a number
+            }
+        } else if(splitMessage.length == 1) {
+            createTeams(0);
+        }
+    }
+
+    protected void createTeams(int teamSize) {
+
+    }
     protected void handleSetup(MessageReceivedEvent event) {
         GLOBAL_CHANNEL = event.getGuild().getTextChannelById(event.getChannel().getId());
         GLOBAL_CHANNEL.sendMessage("Setup complete. Using ``" + GLOBAL_CHANNEL.getName() + "`` for updates.").queue();
@@ -103,7 +128,10 @@ public class HCMessage extends ListenerAdapter {
             if (checkIfFree(possibleClaim)) {
                 if (checkIfUserDidntClaimed(user)) {
                     claimedAccounts.put(possibleClaim, user);
-                    channel.sendMessage("You successfully claimed ``YOINC_acc0" + possibleClaim + "``.\n" +
+                    channel.sendMessage("You successfully claimed ``YOINC_acc0" + possibleClaim + "``.\n\n" +
+                            "Please login into your Steam client using the following data:\n" +
+                            "Username: ``YOINC_acc0" + possibleClaim + "``\n" +
+                            "Password: ``" + properties.getProperty("password.yoinc_acc0" + possibleClaim) + "``\n\n" +
                             "Please follow the guide on the website to set up family sharing.").queue();
                     GLOBAL_CHANNEL.sendMessage("``YOINC_acc0" + possibleClaim + "`` claimed.").queue();
                     System.out.println("[CLAIM] - " + userName + " claimed YOINC_acc0" + possibleClaim);
