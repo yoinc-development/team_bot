@@ -23,6 +23,8 @@ public class Starter implements EventListener {
                     .addEventListeners(new HCMessage(properties))
                     .build();
 
+            //TODO: add Slash Commands.
+
             jda.awaitReady();
 
         } catch (LoginException ex) {
