@@ -16,10 +16,15 @@ import java.util.Set;
 public class HCMessage extends ListenerAdapter {
 
     private Properties properties;
+
     private Map<Integer, String> claimedAccounts = new HashMap<Integer, String>();
     private List<int[]> teams = new ArrayList<int[]>();
+
     private int playerFreePass = -1;
+
     private TextChannel GLOBAL_CHANNEL = null;
+
+    private boolean hasStarted = false;
 
     public HCMessage(Properties properties) {
         super();
@@ -36,7 +41,11 @@ public class HCMessage extends ListenerAdapter {
                     switch (handleMessage(event.getMessage().getContentDisplay(), isAdmin)) {
                         case 1:
                             if (GLOBAL_CHANNEL != null) {
-                                handleClaim(event, channel, user, event.getAuthor().getName());
+                                if(!hasStarted) {
+                                    handleClaim(event, channel, user, event.getAuthor().getName());
+                                } else {
+                                    channel.sendMessage("Team matching is already complete. You can not claim an account now.").queue();
+                                }
                             } else {
                                 channel.sendMessage("Setup not complete.").queue();
                             }
@@ -114,6 +123,7 @@ public class HCMessage extends ListenerAdapter {
         claimedAccounts = new HashMap<Integer, String>();
         teams = new ArrayList<int[]>();
         playerFreePass = -1;
+        hasStarted = false;
 
         GLOBAL_CHANNEL = event.getGuild().getTextChannelById(event.getChannel().getId());
         GLOBAL_CHANNEL.sendMessage("Setup complete. Using ``" + GLOBAL_CHANNEL.getName() + "`` for updates.").queue();
@@ -208,6 +218,7 @@ public class HCMessage extends ListenerAdapter {
         }
         return false;
     }
+
     //admin should consider teamSize such that
     //(playerAcc.size() / teamSize) % 2 == 0
     protected void createTeams(int teamSize) {
@@ -243,6 +254,7 @@ public class HCMessage extends ListenerAdapter {
     	if(playerFreePass != -1) {
             GLOBAL_CHANNEL.sendMessage("Player YOINC_acc0" + playerFreePass + " gets a free pass.").queue();
         }
+    	hasStarted = true;
     }
     
     private int getPlayerAcc(Set<Integer> players, int index) {
