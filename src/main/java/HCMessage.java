@@ -81,7 +81,7 @@ public class HCMessage extends ListenerAdapter {
                 return 3;
             }
         }
-        if (message.toLowerCase().startsWith("/setup")) {
+        if (message.toLowerCase().equals("/setup")) {
             if (isAdmin) {
                 return 9;
             }
@@ -122,14 +122,25 @@ public class HCMessage extends ListenerAdapter {
     	}
     	int teamAmount = playerAcc.size() / teamSize;
     	for (int i = 0; i < teamAmount; i++) {
+    	    String builtMessage = "";
     		int[] playerTeam = new int[teamSize];
     		for (int j = 0; j < teamSize; j++) {
     			int teamMate = getPlayerAcc(playerAcc, rand.nextInt(playerAcc.size()));
+    			if(builtMessage.isEmpty()) {
+                    builtMessage = "**YOINC_acc0" + teamMate + "**";
+                } else {
+                    builtMessage = builtMessage + " & YOINC_acc0" + teamMate;
+                }
     			playerTeam[j] = teamMate;
     			playerAcc.remove(teamMate);
     		}
     		teams.add(playerTeam);
+    		GLOBAL_CHANNEL.sendMessage("__Team " + (i+1) + ":__\n" +
+                    builtMessage).queue();
     	}
+    	if(playerFreePass != -1) {
+            GLOBAL_CHANNEL.sendMessage("Player YOINC_acc0" + playerFreePass + " gets a free pass.").queue();
+        }
     }
     
     private int getPlayerAcc(Set<Integer> players, int index) {
@@ -146,6 +157,10 @@ public class HCMessage extends ListenerAdapter {
     }
     
     protected void handleSetup(MessageReceivedEvent event) {
+        claimedAccounts = new HashMap<Integer, String>();
+        teams = new ArrayList<int[]>();
+        playerFreePass = -1;
+
         GLOBAL_CHANNEL = event.getGuild().getTextChannelById(event.getChannel().getId());
         GLOBAL_CHANNEL.sendMessage("Setup complete. Using ``" + GLOBAL_CHANNEL.getName() + "`` for updates.").queue();
         //Additional Setup Methods required
