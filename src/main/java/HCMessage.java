@@ -30,10 +30,7 @@ public class HCMessage extends ListenerAdapter {
     public void onMessageReceived(MessageReceivedEvent event) {
         MessageChannel channel = event.getChannel();
         String user = event.getAuthor().getId();
-        boolean isAdmin = false;
-        if (user.equals(properties.getProperty("bot.admin"))) {
-            isAdmin = true;
-        }
+        boolean isAdmin = isAdmin(user);
         if (event.getMessage() != null) {
             if (event.isFromType(ChannelType.PRIVATE)) {
                     switch (handleMessage(event.getMessage().getContentDisplay(), isAdmin)) {
@@ -51,6 +48,8 @@ public class HCMessage extends ListenerAdapter {
                                 channel.sendMessage("Setup not complete.").queue();
                             }
                             break;
+                        case 8:
+                            handleAdd(event);
                         default:
                             break;
                     }
@@ -81,6 +80,11 @@ public class HCMessage extends ListenerAdapter {
                 return 3;
             }
         }
+        if(message.toLowerCase().startsWith("/add")) {
+            if(isAdmin) {
+                return 8;
+            }
+        }
         if (message.toLowerCase().equals("/setup")) {
             if (isAdmin) {
                 return 9;
@@ -106,6 +110,104 @@ public class HCMessage extends ListenerAdapter {
         }
     }
 
+    protected void handleSetup(MessageReceivedEvent event) {
+        claimedAccounts = new HashMap<Integer, String>();
+        teams = new ArrayList<int[]>();
+        playerFreePass = -1;
+
+        GLOBAL_CHANNEL = event.getGuild().getTextChannelById(event.getChannel().getId());
+        GLOBAL_CHANNEL.sendMessage("Setup complete. Using ``" + GLOBAL_CHANNEL.getName() + "`` for updates.").queue();
+        //Additional Setup Methods required
+    }
+
+    protected void handleClaim(MessageReceivedEvent event, MessageChannel channel, String user, String userName) {
+        int possibleClaim = (int) returnNumber(event.getMessage().getContentDisplay(), 0);
+        if (possibleClaim <= 0 || possibleClaim > 14) {
+            switch (possibleClaim) {
+                case 0:
+                    channel.sendMessage("That's not a valid account.").queue();
+                    break;
+                case -1:
+                    channel.sendMessage("That's not a valid number.").queue();
+                    break;
+                case -2:
+                    channel.sendMessage("Please send the message in the right format ``/claim <number>``.").queue();
+                    break;
+                default:
+                    channel.sendMessage("Your number is too high. The max. you can claim is 14.").queue();
+                    break;
+            }
+        } else {
+            if (checkIfFree(possibleClaim)) {
+                if (checkIfUserDidntClaimed(user)) {
+                    claimedAccounts.put(possibleClaim, user);
+                    channel.sendMessage("You successfully claimed ``YOINC_acc0" + possibleClaim + "``.\n" +
+                            "Please follow the guide on the website to set up family sharing.").queue();
+                    GLOBAL_CHANNEL.sendMessage("``YOINC_acc0" + possibleClaim + "`` claimed.").queue();
+                    System.out.println("[CLAIM] - " + userName + " claimed YOINC_acc0" + possibleClaim);
+                } else {
+                    channel.sendMessage("You already claimed an account.").queue();
+                }
+            } else {
+                channel.sendMessage("Account already claimed. Please try claiming another.").queue();
+            }
+        }
+    }
+
+    protected void handleAdd(MessageReceivedEvent event) {
+        long newAdmin = (long) returnNumber(event.getMessage().getContentDisplay(), 1);
+        if(String.valueOf(newAdmin).length() == 17 || String.valueOf(newAdmin).length() == 18) {
+            properties.setProperty("bot.admin", properties.getProperty("bot.admin") + "," + newAdmin);
+        }
+    }
+
+    protected Object returnNumber(String message, int type) {
+        String[] messageParts = message.split(" ");
+        if (messageParts.length == 2) {
+            try {
+                switch (type) {
+                    case 0:
+                        int returnIntValue = Integer.parseInt(messageParts[1]);
+                        if (returnIntValue <= 0) {
+                            return 0;
+                        } else {
+                            return returnIntValue;
+                        }
+                    case 1:
+                        long returnLongValue = Long.parseLong(messageParts[1]);
+                        if (returnLongValue <= 0) {
+                            return 0;
+                        } else {
+                            return returnLongValue;
+                        }
+                    default:
+                        //This will never happen.
+                        return -3;
+                }
+            } catch (NumberFormatException ex) {
+                return -1;
+            }
+        } else {
+            return -2;
+        }
+    }
+
+    protected boolean isAdmin(String user) {
+        final String ADMIN = properties.getProperty("bot.admin");
+        if(ADMIN != null && ADMIN.contains(",")) {
+            String[] adminList = ADMIN.split(",");
+            for(String admin : adminList) {
+                if(user.equals(admin)) {
+                    return true;
+                }
+            }
+        } else {
+            if (user.equals(ADMIN)) {
+                return true;
+            }
+        }
+        return false;
+    }
     //admin should consider teamSize such that
     //(playerAcc.size() / teamSize) % 2 == 0
     protected void createTeams(int teamSize) {
@@ -154,68 +256,6 @@ public class HCMessage extends ListenerAdapter {
     		idx++;
     	}
     	return -1;
-    }
-    
-    protected void handleSetup(MessageReceivedEvent event) {
-        claimedAccounts = new HashMap<Integer, String>();
-        teams = new ArrayList<int[]>();
-        playerFreePass = -1;
-
-        GLOBAL_CHANNEL = event.getGuild().getTextChannelById(event.getChannel().getId());
-        GLOBAL_CHANNEL.sendMessage("Setup complete. Using ``" + GLOBAL_CHANNEL.getName() + "`` for updates.").queue();
-        //Additional Setup Methods required
-    }
-
-    protected void handleClaim(MessageReceivedEvent event, MessageChannel channel, String user, String userName) {
-        int possibleClaim = handleClaimMessage(event.getMessage().getContentDisplay());
-        if (possibleClaim <= 0 || possibleClaim > 14) {
-            switch (possibleClaim) {
-                case 0:
-                    channel.sendMessage("That's not a valid account.").queue();
-                    break;
-                case -1:
-                    channel.sendMessage("That's not a valid number.").queue();
-                    break;
-                case -2:
-                    channel.sendMessage("Please send the message in the right format ``/claim <number>``.").queue();
-                    break;
-                default:
-                    channel.sendMessage("Your number is too high. The max. you can claim is 14.").queue();
-                    break;
-            }
-        } else {
-            if (checkIfFree(possibleClaim)) {
-                if (checkIfUserDidntClaimed(user)) {
-                    claimedAccounts.put(possibleClaim, user);
-                    channel.sendMessage("You successfully claimed ``YOINC_acc0" + possibleClaim + "``.\n" +
-                            "Please follow the guide on the website to set up family sharing.").queue();
-                    GLOBAL_CHANNEL.sendMessage("``YOINC_acc0" + possibleClaim + "`` claimed.").queue();
-                    System.out.println("[CLAIM] - " + userName + " claimed YOINC_acc0" + possibleClaim);
-                } else {
-                    channel.sendMessage("You already claimed an account.").queue();
-                }
-            } else {
-                channel.sendMessage("Account already claimed. Please try claiming another.").queue();
-            }
-        }
-    }
-
-    protected int handleClaimMessage(String message) {
-        String[] messageParts = message.split(" ");
-        if (messageParts.length == 2) {
-            try {
-                int returnValue = Integer.parseInt(messageParts[1]);
-                if (returnValue <= 0) {
-                    return 0;
-                } else {
-                    return returnValue;
-                }
-            } catch (NumberFormatException ex) {
-                return -1;
-            }
-        } else {
-            return -2;
-        }
     }
 
     protected boolean checkIfFree(int possibleClaim) {

@@ -39,19 +39,19 @@ public class HCMessageTest {
 
     @Test
     public void testNoNumberInClaim() {
-        int result = underTest.handleClaimMessage("/claim");
+        int result = (int) underTest.returnNumber("/claim", 0);
         assertEquals(-2, result);
     }
 
     @Test
     public void testNoRealNumberInClaim() {
-        int result = underTest.handleClaimMessage("/claim fail");
+        int result = (int) underTest.returnNumber("/claim fail", 0);
         assertEquals(-1, result);
     }
 
     @Test
     public void testCorrectClaim() {
-        int result = underTest.handleClaimMessage("/claim 5");
+        int result = (int) underTest.returnNumber("/claim 5", 0);
         assertEquals(5, result);
     }
 }
