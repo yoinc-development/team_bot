@@ -230,7 +230,8 @@ public class HCMessage extends ListenerAdapter {
     		playerAcc.remove(playerFreePass);
     	}  
     	if ((playerAcc.size() / teamSize) % 2 != 0) {
-    		GLOBAL_CHANNEL.sendMessage("Please reconsider the Team Size!").queue();
+    		GLOBAL_CHANNEL.sendMessage("Please reconsider the team size.\n" +
+                    "Teams have no been created.").queue();
     		return;
     	}
     	int teamAmount = playerAcc.size() / teamSize;
@@ -240,16 +241,16 @@ public class HCMessage extends ListenerAdapter {
     		for (int j = 0; j < teamSize; j++) {
     			int teamMate = getPlayerAcc(playerAcc, rand.nextInt(playerAcc.size()));
     			if(builtMessage.isEmpty()) {
-                    builtMessage = "**YOINC_acc0" + teamMate + "**";
+                    builtMessage = "``YOINC_acc0" + teamMate + "``";
                 } else {
-                    builtMessage = builtMessage + " & YOINC_acc0" + teamMate;
+                    builtMessage = builtMessage + " & ``YOINC_acc0" + teamMate + "``";
                 }
     			playerTeam[j] = teamMate;
     			playerAcc.remove(teamMate);
     		}
     		teams.add(playerTeam);
-    		GLOBAL_CHANNEL.sendMessage("__Team " + (i+1) + ":__\n" +
-                    builtMessage).queue();
+    		GLOBAL_CHANNEL.sendMessage("__Team " + (i + 1) + ":__\n" +
+                    builtMessage + ":__\n").queue();
     	}
     	if(playerFreePass != -1) {
             GLOBAL_CHANNEL.sendMessage("Player YOINC_acc0" + playerFreePass + " gets a free pass.").queue();
