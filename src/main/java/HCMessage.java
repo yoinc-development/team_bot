@@ -1,6 +1,7 @@
 import net.dv8tion.jda.api.entities.ChannelType;
 import net.dv8tion.jda.api.entities.MessageChannel;
 import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
@@ -9,6 +10,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
@@ -17,7 +20,7 @@ public class HCMessage extends ListenerAdapter {
 
     private Properties properties;
 
-    private Map<Integer, String> claimedAccounts = new HashMap<Integer, String>();
+    private Map<Integer, User> claimedAccounts = new HashMap<Integer, User>();
     private List<int[]> teams = new ArrayList<int[]>();
 
     private int playerFreePass = -1;
@@ -34,7 +37,7 @@ public class HCMessage extends ListenerAdapter {
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
         MessageChannel channel = event.getChannel();
-        String user = event.getAuthor().getId();
+        User user = event.getAuthor();
         boolean isAdmin = isAdmin(user);
         if (event.getMessage() != null) {
             if (event.isFromType(ChannelType.PRIVATE)) {
@@ -59,6 +62,9 @@ public class HCMessage extends ListenerAdapter {
                             break;
                         case 8:
                             handleAdd(event);
+                        case 12:
+                        	//TODO: Send DM
+                        	break;
                         default:
                             break;
                     }
@@ -99,6 +105,9 @@ public class HCMessage extends ListenerAdapter {
                 return 9;
             }
         }
+        if (message.toLowerCase().equals("/send")) {
+        	return 12;
+        }
         //DEFINE OTHER COMMANDS HERE
 
         return 0;
@@ -117,10 +126,14 @@ public class HCMessage extends ListenerAdapter {
         } else if(splitMessage.length == 1) {
             createTeams(1);
         }
+        for (int[] players : teams) {
+        	sendDirectMessage(claimedAccounts.get(players[0])
+        			, "Please create an AOE II lobby and send the invite URL in this channel using ``/send <URL>`` ");
+        }
     }
 
     protected void handleSetup(MessageReceivedEvent event) {
-        claimedAccounts = new HashMap<Integer, String>();
+        claimedAccounts = new HashMap<Integer, User>();
         teams = new ArrayList<int[]>();
         playerFreePass = -1;
         hasStarted = false;
@@ -130,7 +143,7 @@ public class HCMessage extends ListenerAdapter {
         //Additional Setup Methods required
     }
 
-    protected void handleClaim(MessageReceivedEvent event, MessageChannel channel, String user, String userName) {
+    protected void handleClaim(MessageReceivedEvent event, MessageChannel channel, User user, String userName) {
         int possibleClaim = (int) returnNumber(event.getMessage().getContentDisplay(), 0);
         if (possibleClaim <= 0 || possibleClaim > 14) {
             switch (possibleClaim) {
@@ -173,6 +186,14 @@ public class HCMessage extends ListenerAdapter {
             properties.setProperty("bot.admin", properties.getProperty("bot.admin") + "," + newAdmin);
         }
     }
+    
+    private void sendDirectMessage(User user, String content) {
+    	if (user != null) {
+    		user.openPrivateChannel()
+        	.flatMap(channel -> channel.sendMessage(content))
+        	.queue();
+    	}
+    }
 
     protected Object returnNumber(String message, int type) {
         String[] messageParts = message.split(" ");
@@ -205,17 +226,17 @@ public class HCMessage extends ListenerAdapter {
         }
     }
 
-    protected boolean isAdmin(String user) {
+    protected boolean isAdmin(User user) {
         final String ADMIN = properties.getProperty("bot.admin");
         if(ADMIN != null && ADMIN.contains(",")) {
             String[] adminList = ADMIN.split(",");
             for(String admin : adminList) {
-                if(user.equals(admin)) {
+                if(user.getId().equals(admin)) {
                     return true;
                 }
             }
         } else {
-            if (user.equals(ADMIN)) {
+            if (user.getId().equals(ADMIN)) {
                 return true;
             }
         }
@@ -225,7 +246,7 @@ public class HCMessage extends ListenerAdapter {
     //admin should consider teamSize such that
     //(playerAcc.size() / teamSize) % 2 == 0
     protected void createTeams(int teamSize) {
-    	Set<Integer> playerAcc = claimedAccounts.keySet();
+    	Set<Integer> playerAcc = claimedAccounts.keySet().stream().collect(Collectors.toSet());
     	Random rand = new Random();
     	if (playerAcc.size() % teamSize == 1) { 
     		int randomIndex = rand.nextInt(playerAcc.size());
@@ -281,16 +302,24 @@ public class HCMessage extends ListenerAdapter {
         return false;
     }
 
-    protected boolean checkIfUserDidntClaimed(String user) {
+    protected boolean checkIfUserDidntClaimed(User user) {
         if (claimedAccounts.isEmpty()) {
             return true;
         } else {
-            for (Map.Entry<Integer, String> entry : claimedAccounts.entrySet()) {
-                if (entry.getValue().equals(user)) {
+            for (Entry<Integer, User> entry : claimedAccounts.entrySet()) {
+                if (equalsUser(entry.getValue(), user)) {
                     return false;
                 }
             }
         }
         return true;
     }
+    
+    private boolean equalsUser(User user1, User user2) {
+    	if (user1.getId().equals(user2.getId()))
+    		return true;
+    	
+    	return false;
+    }
+    
 }
