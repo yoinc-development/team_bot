@@ -22,6 +22,8 @@ public class HCMessage extends ListenerAdapter {
 
     private Map<Integer, User> claimedAccounts = new HashMap<Integer, User>();
     private List<int[]> teams = new ArrayList<int[]>();
+    private List<MatchUp> matches = new ArrayList<MatchUp>();
+    private Map<User, Integer> roleHostTeam = new HashMap<User, Integer>();
 
     private int playerFreePass = -1;
 
@@ -63,7 +65,7 @@ public class HCMessage extends ListenerAdapter {
                         case 8:
                             handleAdd(event);
                         case 12:
-                        	//TODO: Send DM
+                        	shareRoomKey(user, event.getMessage().getContentDisplay());
                         	break;
                         default:
                             break;
@@ -105,7 +107,7 @@ public class HCMessage extends ListenerAdapter {
                 return 9;
             }
         }
-        if (message.toLowerCase().equals("/send")) {
+        if (message.toLowerCase().startsWith("/send")) {
         	return 12;
         }
         //DEFINE OTHER COMMANDS HERE
@@ -126,9 +128,10 @@ public class HCMessage extends ListenerAdapter {
         } else if(splitMessage.length == 1) {
             createTeams(1);
         }
-        for (int[] players : teams) {
-        	sendDirectMessage(claimedAccounts.get(players[0])
-        			, "Please create an AOE II lobby and send the invite URL in this channel using ``/send <URL>`` ");
+        if (!teams.isEmpty()) {
+        	generateMatchUp();
+        	notifyRoleHost();
+        	releaseMatchUp();
         }
     }
 
@@ -164,13 +167,13 @@ public class HCMessage extends ListenerAdapter {
             if (checkIfFree(possibleClaim)) {
                 if (checkIfUserDidntClaimed(user)) {
                     claimedAccounts.put(possibleClaim, user);
-                    channel.sendMessage("You successfully claimed ``YOINC_acc0" + possibleClaim + "``.\n\n" +
+                    channel.sendMessage("You successfully claimed ``YOINC_acc" + correctNumberFormate(possibleClaim) + "``.\n\n" +
                             "Please login into your Steam client using the following data:\n" +
-                            "Username: ``YOINC_acc0" + possibleClaim + "``\n" +
-                            "Password: ``" + properties.getProperty("password.yoinc_acc0" + possibleClaim) + "``\n\n" +
+                            "Username: ``YOINC_acc" + correctNumberFormate(possibleClaim) + "``\n" +
+                            "Password: ``" + properties.getProperty("password.yoinc_acc" + correctNumberFormate(possibleClaim)) + "``\n\n" +
                             "Please follow the guide on the website to set up family sharing.").queue();
-                    GLOBAL_CHANNEL.sendMessage("``YOINC_acc0" + possibleClaim + "`` claimed.").queue();
-                    System.out.println("[CLAIM] - " + userName + " claimed YOINC_acc0" + possibleClaim);
+                    GLOBAL_CHANNEL.sendMessage("``YOINC_acc" + correctNumberFormate(possibleClaim) + "`` claimed.").queue();
+                    System.out.println("[CLAIM] - " + userName + " claimed YOINC_acc" + correctNumberFormate(possibleClaim));
                 } else {
                     channel.sendMessage("You already claimed an account.").queue();
                 }
@@ -265,19 +268,19 @@ public class HCMessage extends ListenerAdapter {
     		for (int j = 0; j < teamSize; j++) {
     			int teamMate = getPlayerAcc(playerAcc, rand.nextInt(playerAcc.size()));
     			if(builtMessage.isEmpty()) {
-                    builtMessage = "``YOINC_acc0" + teamMate + "``";
+                    builtMessage = "``YOINC_acc" + correctNumberFormate(teamMate) + "``";
                 } else {
-                    builtMessage = builtMessage + " & ``YOINC_acc0" + teamMate + "``";
+                    builtMessage = builtMessage + " & ``YOINC_acc" + correctNumberFormate(teamMate) + "``";
                 }
     			playerTeam[j] = teamMate;
     			playerAcc.remove(teamMate);
     		}
     		teams.add(playerTeam);
     		GLOBAL_CHANNEL.sendMessage("__Team " + (i + 1) + ":__\n" +
-                    builtMessage + ":__\n").queue();
+                    builtMessage + "\n").queue();
     	}
     	if(playerFreePass != -1) {
-            GLOBAL_CHANNEL.sendMessage("Player YOINC_acc0" + playerFreePass + " gets a free pass.").queue();
+            GLOBAL_CHANNEL.sendMessage("Player YOINC_acc" + correctNumberFormate(playerFreePass) + " gets a free pass.").queue();
         }
     	hasStarted = true;
     }
@@ -294,6 +297,85 @@ public class HCMessage extends ListenerAdapter {
     	}
     	return -1;
     }
+    
+    protected void generateMatchUp() {
+    	List<int[]> teamsClone = teams.stream().collect(Collectors.toList());
+    	int matchesAmount = teamsClone.size() / 2;
+    	Random rand = new Random();
+    	
+    	for (int i = 0; i < matchesAmount; i++) {
+    		int team1Index = rand.nextInt(teamsClone.size());
+    		int[] team1 = teamsClone.remove(team1Index);
+    		int team2Index = rand.nextInt(teamsClone.size());
+    		int[] team2 = teamsClone.remove(team2Index);
+    		User roleHost = claimedAccounts.get(team1[0]);
+    		MatchUp match = new MatchUp(team1, team2, roleHost);
+    		matches.add(match);
+    		roleHostTeam.put(roleHost, matches.size()-1);
+    	}
+    	
+    }
+    
+    protected void notifyRoleHost() {
+    	Set<User> roleHostSet = roleHostTeam.keySet();
+    	Iterator<User> itr = roleHostSet.iterator();
+    	String msg = "**Please create a lobby and send the invite URL in this channel using ``/send <URL>``**";
+    	while (itr.hasNext()) {
+    		User roleHost = itr.next();
+    		sendDirectMessage(roleHost, msg);
+    	}
+    }
+    
+    protected void releaseMatchUp() {
+    	String buildMessage = " \n";
+    	for (int i = 0; i < matches.size(); i++) {
+    		MatchUp match = matches.get(i);
+    		buildMessage += "__Match " + (i + 1) + ":__ \n";
+    		buildMessage += match.teamToString(1) + " vs " + match.teamToString(2) + "\n";
+    	}
+    	buildMessage += "**A Host for each match has been selected and notified to create a lobby.** \n"
+    			+ "**Players will be receiving the Invite URL shortly.**";
+    	GLOBAL_CHANNEL.sendMessage(buildMessage).queue();
+    }
+    
+    protected void shareRoomKey(User roleHost, String msg) {
+    	String[] messageParts = msg.split(" ");
+    	if ((messageParts.length == 2) && (messageParts[1].startsWith("aoe2de://"))) {
+    		int matchUpIndex = roleHostTeam.get(roleHost);
+			MatchUp match = matches.get(matchUpIndex);
+			match.setRoomKey(messageParts[1]);
+			int[] team1 = match.getTeam1();
+			int[] team2 = match.getTeam2();
+			String buildMessage = "**Please join the lobby by enter the following URL into your browser: ``"
+					+ match.getRoomKey()+ "``**";
+			for (int i = 1; i < team1.length; i++) {
+				User player = claimedAccounts.get(team1[i]);
+				sendDirectMessage(player, buildMessage);
+			}
+			for (int i = 0; i < team2.length; i++) {
+				User player = claimedAccounts.get(team2[i]);
+				sendDirectMessage(player, buildMessage);
+			}
+			String globalMessage = " \n**__Match Starting!:__** \n" 
+			+ match.teamToString(1) + " vs " + match.teamToString(2) + " starting now: \n"
+					+ "Spectators may join the Room using ``" + match.getRoomKey() + "``\n"
+							+ "GLHF 30!";
+			GLOBAL_CHANNEL.sendMessage(globalMessage).queue();
+			
+    	} else {
+			sendDirectMessage(roleHost, "**Invite URL wrong. It should look like this: ``aoe2de://_/_____``** \n" +
+					"**Please resend the Invite URL by using ``/send <URL>``**");
+			return;
+		}
+    }
+    
+    protected String correctNumberFormate(int playerIndex) {
+		if (playerIndex >= 1 && playerIndex <= 9) {
+			return "0" + playerIndex;
+		} else {
+			return "" + playerIndex;
+		}
+	}
 
     protected boolean checkIfFree(int possibleClaim) {
         if (claimedAccounts.get(possibleClaim) == null) {
