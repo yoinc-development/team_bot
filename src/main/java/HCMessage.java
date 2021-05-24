@@ -339,6 +339,10 @@ public class HCMessage extends ListenerAdapter {
     }
     
     protected void shareRoomKey(User roleHost, String msg) {
+    	if (!roleHostTeam.containsKey(roleHost)) {
+    		sendDirectMessage(roleHost, "**You are not allowed to send an invite URL!** \n"
+    				+ "Please wait until the selected Host has created a lobby!");
+    	}
     	String[] messageParts = msg.split(" ");
     	if ((messageParts.length == 2) && (messageParts[1].startsWith("aoe2de://"))) {
     		int matchUpIndex = roleHostTeam.get(roleHost);
