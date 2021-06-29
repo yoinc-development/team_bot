@@ -26,6 +26,9 @@ public class HCMessage extends ListenerAdapter {
     private List<int[]> teams = new ArrayList<int[]>();
     private List<MatchUp> matches = new ArrayList<MatchUp>();
     private Map<User, Integer> roleHostTeam = new HashMap<User, Integer>();
+    private List<Integer> loserPlayers = new ArrayList<Integer>();
+    private List<Integer> winnerPlayers = new ArrayList<Integer>();
+
 
     private int playerFreePass = -1;
 
@@ -69,8 +72,12 @@ public class HCMessage extends ListenerAdapter {
                         case 12:
                         	shareRoomKey(user, event.getMessage().getContentDisplay());
                         	break;
+                        case 17:
+                        	handleResult(user, event.getMessage().getContentDisplay());
+                        	break;
                         case 18:
                         	handleSay(user, event.getMessage().getContentDisplay());
+
                         default:
                             break;
                     }
@@ -82,6 +89,8 @@ public class HCMessage extends ListenerAdapter {
                     case 9:
                         handleSetup(event);
                         break;
+                    case 18:
+                    	handleCorrectResult(event.getMessage().getContentDisplay());
                     default:
                         break;
                 }
@@ -114,8 +123,16 @@ public class HCMessage extends ListenerAdapter {
         if (message.toLowerCase().startsWith("/send")) {
         	return 12;
         }
+        if (message.toLowerCase().startsWith("/result")) {
+        	return 17;
+        }
+        if (message.toLowerCase().startsWith("/correctresult")) {
+        	if (isAdmin) {
+        		return 18;
+        	}
         if (message.toLowerCase().startsWith("/say")) {
         	return 18;
+
         }
         //DEFINE OTHER COMMANDS HERE
 
@@ -125,6 +142,15 @@ public class HCMessage extends ListenerAdapter {
     protected void handleStart(MessageReceivedEvent event) {
         String message = event.getMessage().getContentDisplay();
         String[] splitMessage = message.split(" ");
+        if (!loserPlayers.isEmpty()) {
+        	for (Integer i : loserPlayers) {
+        		String userName = claimedAccounts.get(i).getName();
+        		claimedAccounts.remove(i);
+        		System.out.println("[REMOVED] - " + userName + "'s account YOINC_acc" + correctNumberFormate(i) 
+        		+ "has been removed from claimedAccounts"); //DEBUG
+        	}
+        }
+        teams = new ArrayList<int[]>();
         if(splitMessage.length == 2) {
             try {
                 int teamSize = Integer.parseInt(splitMessage[1]);
@@ -136,6 +162,11 @@ public class HCMessage extends ListenerAdapter {
             createTeams(1);
         }
         if (!teams.isEmpty()) {
+        	playerFreePass = -1;
+        	matches = new ArrayList<MatchUp>();
+        	roleHostTeam = new HashMap<User, Integer>();
+        	winnerPlayers = new ArrayList<Integer>();
+        	loserPlayers = new ArrayList<Integer>();
         	generateMatchUp();
         	notifyRoleHost();
         	releaseMatchUp();
@@ -145,6 +176,10 @@ public class HCMessage extends ListenerAdapter {
     protected void handleSetup(MessageReceivedEvent event) {
         claimedAccounts = new HashMap<Integer, User>();
         teams = new ArrayList<int[]>();
+        matches = new ArrayList<MatchUp>();
+    	roleHostTeam = new HashMap<User, Integer>();
+    	winnerPlayers = new ArrayList<Integer>();
+    	loserPlayers = new ArrayList<Integer>();
         playerFreePass = -1;
         hasStarted = false;
 
@@ -180,7 +215,7 @@ public class HCMessage extends ListenerAdapter {
                             "Password: ``" + properties.getProperty("password.yoinc_acc" + correctNumberFormate(possibleClaim)) + "``\n\n" +
                             "Please follow the guide on the website to set up family sharing.").queue();
                     GLOBAL_CHANNEL.sendMessage("``YOINC_acc" + correctNumberFormate(possibleClaim) + "`` claimed.").queue();
-                    System.out.println("[CLAIM] - " + userName + " claimed YOINC_acc" + correctNumberFormate(possibleClaim));
+                    System.out.println("[CLAIM] - " + userName + " claimed YOINC_acc" + correctNumberFormate(possibleClaim)); //DEBUG
                 } else {
                     channel.sendMessage("You already claimed an account.").queue();
                 }
@@ -196,7 +231,7 @@ public class HCMessage extends ListenerAdapter {
             properties.setProperty("bot.admin", properties.getProperty("bot.admin") + "," + newAdmin);
         }
     }
-    
+
     protected void handleSay(User user, String msg) {
     	String[] msgParts = msg.split(" ");
     	String userName = "``yoinc_" + correctNumberFormate(getKeyByValue(claimedAccounts, user)) + "``"; 
@@ -248,7 +283,7 @@ public class HCMessage extends ListenerAdapter {
 			return;
 		}
     }
-    
+      
     private void sendDirectMessage(User user, String content) {
     	if (user != null) {
     		user.openPrivateChannel()
@@ -287,16 +322,18 @@ public class HCMessage extends ListenerAdapter {
             return -2;
         }
     }
-    
+
     protected boolean isAdmin(User user) {
         final String ADMIN = properties.getProperty("bot.admin");
         if(ADMIN != null && ADMIN.contains(",")) {
             String[] adminList = ADMIN.split(",");
             for(String admin : adminList) {
                 if(user.getId().equals(admin)) {
+
                 	if (serverAdmin == null) {
                 		serverAdmin = user;
                 	}
+
                     return true;
                 }
             }
@@ -401,10 +438,12 @@ public class HCMessage extends ListenerAdapter {
     }
     
     protected void shareRoomKey(User roleHost, String msg) {
+
     	if (!roleHostTeam.containsKey(roleHost)) {
     		sendDirectMessage(roleHost, "**You are not allowed to send an invite URL!** \n"
     				+ "Please wait until the selected Host has created a lobby!");
     	}
+
     	String[] messageParts = msg.split(" ");
     	if ((messageParts.length == 2) && (messageParts[1].startsWith("aoe2de://"))) {
     		int matchUpIndex = roleHostTeam.get(roleHost);
@@ -422,7 +461,8 @@ public class HCMessage extends ListenerAdapter {
 				User player = claimedAccounts.get(team2[i]);
 				sendDirectMessage(player, buildMessage);
 			}
-			String globalMessage = " \n**__Match Starting!:__** \n" 
+
+			String globalMessage = " \n \n **__Match Starting!:__** \n" 
 			+ match.teamToString(1) + " vs " + match.teamToString(2) + " starting now: \n"
 					+ "Spectators may join the Room using ``" + match.getRoomKey() + "``\n"
 							+ "GLHF 30!";
@@ -434,6 +474,109 @@ public class HCMessage extends ListenerAdapter {
 			return;
 		}
     }
+
+    protected void handleResult(User user, String msg) {
+    	String[] messageParts = msg.split(" ");
+    	if ((messageParts.length == 2) && (messageParts[1].equals("won") || messageParts[1].equals("lost"))) {
+    		if (roleHostTeam.containsKey(user)) {
+        		MatchUp match = matches.get(roleHostTeam.get(user));
+        		String winnerTeamStr = match.teamToString(1);
+        		int[] winnerTeam = match.getTeam1();
+        		int[] loserTeam = match.getTeam2();
+        		if (messageParts[1].equals("lost")) {
+        			winnerTeamStr = match.teamToString(2);
+        			winnerTeam = match.getTeam2();
+        			loserTeam = match.getTeam1();
+        		}
+        		for (int i = 0; i < loserTeam.length; i++) {
+        			loserPlayers.add(loserTeam[i]);
+        		}
+        		for (int i = 0; i < winnerTeam.length; i++) {
+        			int winner = winnerTeam[i];
+        			winnerPlayers.add(winner);
+        			String messageContent = "Congratulations on the win! Please wait patiently for the next round to start!";
+        			if (isGrandFinal()) {
+        				messageContent = "Congratulations on winning the tournament! You are the champion!";
+        			}
+        			sendDirectMessage(claimedAccounts.get(winner), messageContent);
+        		}
+        		GLOBAL_CHANNEL.sendMessage("Match " + (1 + roleHostTeam.get(user)) + " finished! Winner: " + winnerTeamStr).queue();
+        		if ((matches.size() * winnerTeam.length) == winnerPlayers.size()) {
+        			printRoundEndStatus();
+        		}
+        	} else {
+        		sendDirectMessage(user, "**You are not the assigned Host. Please let the Host send the result of the match!**");
+        	}
+    	} else {
+    		sendDirectMessage(user, "**Please send the message in the right format ``/result <won/lost>``.**");
+    	}
+    }
+    
+    protected void handleCorrectResult(String msg) {
+    	String[] messageParts = msg.split(" ");
+    	if (messageParts.length == 3 && isNumeric(messageParts[1]) &&(messageParts[2].equals("won") || messageParts[2].equals("lost"))) {
+    		User user = claimedAccounts.get(Integer.parseInt(messageParts[1]));
+    		if (roleHostTeam.containsKey(user)) {
+    			MatchUp match = matches.get(roleHostTeam.get(user));
+    			String winnerTeamStr = match.teamToString(1);
+    			int[] loserTeam = match.getTeam2();
+    			int[] winnerTeam = match.getTeam1();
+    			if(messageParts[2].equals("lost")) {
+    				winnerTeamStr = match.teamToString(2);
+    				loserTeam = match.getTeam1();
+    				winnerTeam = match.getTeam2();
+    			}
+    			if (winnerPlayers.contains(winnerTeam[0])) {
+    				GLOBAL_CHANNEL.sendMessage("**Match result is already correct!** No changes made.").queue();
+    				return;
+    			}
+    			for (int i = 0; i < loserTeam.length; i++) {
+    				Integer player = loserTeam[i];
+    				winnerPlayers.remove(player);
+    				loserPlayers.add(loserTeam[i]);
+    			}
+    			for (int i = 0; i< winnerTeam.length; i++) {
+    				Integer player = winnerTeam[i];
+    				loserPlayers.remove(player);
+    				winnerPlayers.add(winnerTeam[i]);
+    			}
+    			GLOBAL_CHANNEL.sendMessage("**CORRECTION: ** Match " + (1 + roleHostTeam.get(user)) 
+    			+ " corrected! New Winner: " + winnerTeamStr).queue();
+    			printRoundEndStatus();
+    		} else {
+    			GLOBAL_CHANNEL.sendMessage("``YOINC_acc" + (correctNumberFormate(Integer.parseInt(messageParts[1])) 
+    					+ "`` is not a Host or the match has yet to be created. Please try again later or try using the correct Host")).queue();
+    		}
+    	} else {
+    		GLOBAL_CHANNEL.sendMessage("**Please send the message in the right format ``/correctResult <Host ID> <won/lost>``.**").queue();
+    	}
+    }
+    
+    protected void printRoundEndStatus() {
+    	GLOBAL_CHANNEL.sendMessage("**__All Matches finished!__** \n").queue();
+    	if (isGrandFinal()) {
+    		GLOBAL_CHANNEL.sendMessage("**CONGRATULATIONS TO OUR CHAMPION ** ``YOINC_acc"
+    				+ correctNumberFormate(winnerPlayers.get(0)) + "`` FOR WINNING THIS TOURNAMENT!!!").queue();
+    		return;
+    	}
+    	String loserMsg = "Players who dropped out this round: \n";
+    	loserMsg += "``YOINC_acc" + correctNumberFormate(loserPlayers.get(0)) + "``";
+    	for (int i = 1; i < loserPlayers.size(); i++) {
+    		int player = loserPlayers.get(i);
+    		loserMsg += ", ``YOINC_acc" + correctNumberFormate(player) + "``";
+    	}
+    	GLOBAL_CHANNEL.sendMessage(loserMsg).queue();
+    	String winnerMsg = "Players who advance to the next round: \n";
+    	winnerMsg += "``YOINC_acc" + correctNumberFormate(winnerPlayers.get(0)) + "``";
+    	for (int i = 1; i < winnerPlayers.size(); i++) {
+    		int player = winnerPlayers.get(i);
+    		winnerMsg += ", ``YOINC_acc" + correctNumberFormate(player) + "``";
+    	}
+    	if (playerFreePass != -1) {
+    		winnerMsg += ", ``YOINC_acc" + correctNumberFormate(playerFreePass) + "``";
+    	}
+    	GLOBAL_CHANNEL.sendMessage(winnerMsg).queue();
+    }
     
     protected String correctNumberFormate(int playerIndex) {
 		if (playerIndex >= 1 && playerIndex <= 9) {
@@ -443,6 +586,27 @@ public class HCMessage extends ListenerAdapter {
 		}
 	}
     
+
+    public static boolean isNumeric(String strNum) {
+        if (strNum == null) {
+            return false;
+        }
+        try {
+            int d = Integer.parseInt(strNum);
+            if (d < 1 || d > 14) {
+            	return false;
+            }
+        } catch (NumberFormatException nfe) {
+            return false;
+        }
+        return true;
+    }
+    
+    protected boolean isGrandFinal() {
+    	if (matches.size() == 1 && matches.get(0).getTeam1().length == 1 && playerFreePass == -1) {
+    		return true;
+    	}
+    	return false;
     private static <T, E> T getKeyByValue(Map<T, E> map, E value) {
     	for (Entry<T, E> entry : map.entrySet()) {
     		if (Objects.equals(value, entry.getValue())) {
