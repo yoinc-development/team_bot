@@ -11,6 +11,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.Properties;
 import java.util.Random;
@@ -19,6 +20,7 @@ import java.util.Set;
 public class HCMessage extends ListenerAdapter {
 
     private Properties properties;
+    private User serverAdmin = null;
 
     private Map<Integer, User> claimedAccounts = new HashMap<Integer, User>();
     private List<int[]> teams = new ArrayList<int[]>();
@@ -26,6 +28,7 @@ public class HCMessage extends ListenerAdapter {
     private Map<User, Integer> roleHostTeam = new HashMap<User, Integer>();
     private List<Integer> loserPlayers = new ArrayList<Integer>();
     private List<Integer> winnerPlayers = new ArrayList<Integer>();
+
 
     private int playerFreePass = -1;
 
@@ -57,13 +60,13 @@ public class HCMessage extends ListenerAdapter {
                                 channel.sendMessage("Setup not complete.").queue();
                             }
                             break;
-                        case 2:
-                            if (GLOBAL_CHANNEL != null) {
-                            //TODO: say
-                            } else {
-                                channel.sendMessage("Setup not complete.").queue();
-                            }
-                            break;
+//                        case 2:
+//                            if (GLOBAL_CHANNEL != null) {
+//                            //TODO: say
+//                            } else {
+//                                channel.sendMessage("Setup not complete.").queue();
+//                            }
+//                            break;
                         case 8:
                             handleAdd(event);
                         case 12:
@@ -72,6 +75,9 @@ public class HCMessage extends ListenerAdapter {
                         case 17:
                         	handleResult(user, event.getMessage().getContentDisplay());
                         	break;
+                        case 18:
+                        	handleSay(user, event.getMessage().getContentDisplay());
+
                         default:
                             break;
                     }
@@ -96,9 +102,9 @@ public class HCMessage extends ListenerAdapter {
         if (message.toLowerCase().startsWith("/claim")) {
             return 1;
         }
-        if (message.toLowerCase().startsWith("/say")) {
-            return 2;
-        }
+//        if (message.toLowerCase().startsWith("/say")) {
+//            return 2;
+//        }
         if(message.toLowerCase().startsWith("/start")) {
             if(isAdmin) {
                 return 3;
@@ -124,6 +130,9 @@ public class HCMessage extends ListenerAdapter {
         	if (isAdmin) {
         		return 18;
         	}
+        if (message.toLowerCase().startsWith("/say")) {
+        	return 18;
+
         }
         //DEFINE OTHER COMMANDS HERE
 
@@ -222,7 +231,59 @@ public class HCMessage extends ListenerAdapter {
             properties.setProperty("bot.admin", properties.getProperty("bot.admin") + "," + newAdmin);
         }
     }
+
+    protected void handleSay(User user, String msg) {
+    	String[] msgParts = msg.split(" ");
+    	String userName = "``yoinc_" + correctNumberFormate(getKeyByValue(claimedAccounts, user)) + "``"; 
+    	if (msgParts.length >= 3) {	
+    		if (msgParts[1].equals("admin")) {
+    			String chatMsg = msgParts[2];
+    			for (int i = 3; i < msgParts.length; i++) {
+    				chatMsg += " " + msgParts[i];
+    			}
+    			sendDirectMessage(serverAdmin, "[ADMIN-CHAT] - " + userName + " says: _" + chatMsg + "_");
+    			return;
+    		} else if (msgParts[1].equals("asAdmin") && isAdmin(user)) {
+    			String chatMsg = msgParts[3];
+    			for (int i = 4; i < msgParts.length; i++) {
+    				chatMsg += " " + msgParts[i];
+    			}
+    			helperHandleSay(user, "admin", msgParts[2], chatMsg, true);
+    		} else {
+    			String chatMsg = msgParts[2];
+    			for (int i = 3; i < msgParts.length; i++) {
+    				chatMsg += " " + msgParts[i];
+    			}
+    			helperHandleSay(user, userName, msgParts[1], chatMsg, false);
+    		}
+    	} else {
+    		sendDirectMessage(user, "**Please send the message in the right format ``/say <AccountID> <Message>``, "
+    				+ "where the AccountID is the number of recipient's account (e.g 9 for ``yoinc_09`` or admin for ``admin``)**");
+    	}
+    }
     
+    private void helperHandleSay(User user, String userName ,String recipString, String msg, boolean asAdmin) {
+    	int recipId = -1;
+    	try {
+			recipId = Integer.parseInt(recipString);
+		} catch (NumberFormatException ex) {
+			sendDirectMessage(user, "**Please send the message in the right format ``/say <AccountID> <Message>``, "
+    				+ "where the AccountID is the number of recipient's account (e.g 9 for ``yoinc_09`` or admin for ``admin``)**");
+			return;
+		}
+		if (recipId > 0 && recipId <= 14 && claimedAccounts.containsKey(recipId)) {
+			User recipUser = claimedAccounts.get(recipId);
+			if (asAdmin) {
+				sendDirectMessage(recipUser, "[ADMIN-CHAT] - admin says: _" + msg + "_");
+			} else {
+				sendDirectMessage(recipUser, "[CHAT] - " + userName + " says: _" + msg + "_");
+			}
+		} else {
+			sendDirectMessage(user, "**USER NOT FOUND**");
+			return;
+		}
+    }
+      
     private void sendDirectMessage(User user, String content) {
     	if (user != null) {
     		user.openPrivateChannel()
@@ -268,6 +329,11 @@ public class HCMessage extends ListenerAdapter {
             String[] adminList = ADMIN.split(",");
             for(String admin : adminList) {
                 if(user.getId().equals(admin)) {
+
+                	if (serverAdmin == null) {
+                		serverAdmin = user;
+                	}
+
                     return true;
                 }
             }
@@ -372,6 +438,12 @@ public class HCMessage extends ListenerAdapter {
     }
     
     protected void shareRoomKey(User roleHost, String msg) {
+
+    	if (!roleHostTeam.containsKey(roleHost)) {
+    		sendDirectMessage(roleHost, "**You are not allowed to send an invite URL!** \n"
+    				+ "Please wait until the selected Host has created a lobby!");
+    	}
+
     	String[] messageParts = msg.split(" ");
     	if ((messageParts.length == 2) && (messageParts[1].startsWith("aoe2de://"))) {
     		int matchUpIndex = roleHostTeam.get(roleHost);
@@ -389,6 +461,7 @@ public class HCMessage extends ListenerAdapter {
 				User player = claimedAccounts.get(team2[i]);
 				sendDirectMessage(player, buildMessage);
 			}
+
 			String globalMessage = " \n \n **__Match Starting!:__** \n" 
 			+ match.teamToString(1) + " vs " + match.teamToString(2) + " starting now: \n"
 					+ "Spectators may join the Room using ``" + match.getRoomKey() + "``\n"
@@ -401,7 +474,7 @@ public class HCMessage extends ListenerAdapter {
 			return;
 		}
     }
-    
+
     protected void handleResult(User user, String msg) {
     	String[] messageParts = msg.split(" ");
     	if ((messageParts.length == 2) && (messageParts[1].equals("won") || messageParts[1].equals("lost"))) {
@@ -513,6 +586,7 @@ public class HCMessage extends ListenerAdapter {
 		}
 	}
     
+
     public static boolean isNumeric(String strNum) {
         if (strNum == null) {
             return false;
@@ -533,6 +607,13 @@ public class HCMessage extends ListenerAdapter {
     		return true;
     	}
     	return false;
+    private static <T, E> T getKeyByValue(Map<T, E> map, E value) {
+    	for (Entry<T, E> entry : map.entrySet()) {
+    		if (Objects.equals(value, entry.getValue())) {
+    			return entry.getKey();
+    		}
+    	}
+    	return null;
     }
 
     protected boolean checkIfFree(int possibleClaim) {
